@@ -10,12 +10,12 @@ FileMaker開発者（Web未経験）が、AI（Claude Code）に頼みながら�
 - 入っているのはダミーデータだけです。**実在の顧客名・案件名・社内システムのID/パスワードは入力しないでください。**
 
 ```
-task-dashboard/                ← GitHub の tool-task-board（非公開リポジトリ）
-├── README.md                  ← いまここ（公開はされません）
+task-dashboard/                ← GitHub の tool-task-board（公開リポジトリ）
+├── README.md                  ← いまここ（サイトには載りません）
 ├── .gitignore                 GitHubに送らないファイルの一覧
 ├── functions/
-│   └── _middleware.js         Basic認証の門番（公開はされません）
-└── public/                    ← この中だけがインターネットに公開されます
+│   └── _middleware.js         Basic認証の門番（サイトには載りません）
+└── public/                    ← この中だけがサイトとして公開されます
     ├── index.html             アプリ本体（画面・動き・ダミーデータすべてこの1ファイル）
     └── robots.txt             検索エンジンに「巡回しないで」と伝えるファイル
 ```
@@ -118,7 +118,7 @@ FileMakerで例えると、**ファイルを各自のPCにコピーして、そ�
 手元の task-dashboard/
    │  git push（※手元の変更をGitHubへ送る）
    ▼
-GitHub：sup-tsato/tool-task-board（非公開）
+GitHub：sup-tsato/tool-task-board（公開）
    │  変更を検知して自動で取り込む
    ▼
 Cloudflare Pages（※Webページを無料で公開できるサービス）
@@ -129,7 +129,7 @@ https://tool-task-board.pages.dev/
 
 | 設定 | 値 |
 |---|---|
-| GitHubリポジトリ | `sup-tsato/tool-task-board`（**非公開**） |
+| GitHubリポジトリ | `sup-tsato/tool-task-board`（**公開**：プログラムと履歴は誰でも見られる） |
 | Cloudflare に読ませるリポジトリ | `tool-task-board` だけ（Only select repositories） |
 | ビルドコマンド | `exit 0`（変換作業なし） |
 | ビルド出力ディレクトリ | `public`（この中だけを公開） |
@@ -157,6 +157,7 @@ https://tool-task-board.pages.dev/
 3. 変更を反映させるため、公開し直します。Cloudflare の公開履歴から「再デプロイ」を行うか、AIに「再デプロイして」と頼みます。
 
 ### 安全のための決まりごと
+- このリポジトリは**公開**です。ファイルもコミット履歴も、誰でも見られる前提で扱います。一度送ったものは、あとで消しても履歴やコピーに残ることがあります。
 - ユーザー名・パスワードは、**コード・README・コミットには絶対に書かない**（Cloudflareの環境変数にだけ置く）。
 - 環境変数が未登録のときは、門番が**誰も入れない状態（503）にする**ので、設定漏れでサイトが開きっぱなしになることはありません。
 - コミットの作者は GitHub の表示専用アドレス（noreply）にしてあり、会社のメールアドレスは履歴に残していません。
@@ -179,6 +180,7 @@ Claude Code（VS Code の拡張機能）に、日本語で次の順番で頼み�
 | 3 | 公開 | Cloudflare Pagesに、GitHub連携で公開したい。手作業は**番号付きで1ステップずつ**、待ちの箇所は「**ここで止まってください**」と明示、公開前に**鍵・個人情報の点検**、を依頼 | 全体の手順（8ステップ）を先に一覧で提示。点検 → git準備 → 非公開リポジトリの作成と送信までを自動で実行。Cloudflareの画面操作は日本語表示で案内 | リポジトリは**非公開**、名前は `tool-task-board` |
 | 4 | 公開後の保護 | ①点検（ファイルとコミット履歴）②noindex（metaタグとrobots.txt）③Basic認証（Pages Functionsの`_middleware`で、認証情報は環境変数から読む）④パスワードの生成と登録、を依頼 | 履歴まで点検。noindex と門番プログラムを作成し、動作テスト（11項目）。パスワードを生成して一度だけ表示。登録後に、入れる・入れない・noindex・非公開ファイルを本番で確認 | Cloudflareの画面で環境変数とビルド設定を登録 |
 | 5 | 資料化 | このREADMEの作成 | 使い方・しくみ・依頼の流れを整理 | — |
+| 6 | リポジトリの公開 | 「リポジトリを公開するのを忘れていた」と相談 | 「サイトの公開」と「リポジトリの公開」の違いと、公開したときの影響を説明して目的を確認。READMEを送り、全履歴を再点検してから public に切り替え | 誰でも見られるように**公開** |
 
 ### 途中で詰まったところと、その解決
 
