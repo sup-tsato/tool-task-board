@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>タスク管理ボード</title>
+<style>
+  /* ===== 色の定義（ここを変えると全体の色が変わる） ===== */
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --accent: #2563eb;
+    --accent-text: #ffffff;
+    --danger: #c62828;
+    --col-bg: #e9ecf0;
+    --plan: #64748b;   /* 予定 */
+    --doing: #d97706;  /* 作業中 */
+    --done: #16a34a;   /* 完了 */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #1a1d23;
+      --text: #e6e8eb;
+      --muted: #9aa4af;
+      --border: #30363d;
+      --accent: #3b82f6;
+      --danger: #ef5350;
+      --col-bg: #15181d;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* ===== ヘッダー（画面上部に固定） ===== */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  h1 { font-size: 18px; margin: 0; flex: 1 1 auto; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+  /* ===== ボタン・入力欄 ===== */
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    padding: 8px 12px;
+    min-height: 40px;
+  }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.small { padding: 4px 8px; min-height: 32px; font-size: 13px; }
+  input, select, textarea {
+    font: inherit;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  /* ===== 顧客ごとの件数（横に並ぶチップ） ===== */
+  .summary {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    flex: 0 0 auto;
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  .chip.active { border: 2px solid var(--accent); padding: 7px 11px; }
+  .chip .name { font-weight: 600; display: block; }
+  .chip .counts { font-size: 12px; color: var(--muted); }
+
+  /* ===== かんばんボード（PCでは3列、スマホでは縦1列） ===== */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 767px) {
+    .board { grid-template-columns: 1fr; }
+  }
+  .column {
+    background: var(--col-bg);
+    border-radius: 12px;
+    padding: 12px;
+    min-height: 120px;
+  }
+  .column-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .column-head h2 { font-size: 15px; margin: 0; flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--status-color); }
+  .count { font-size: 13px; color: var(--muted); }
+
+  /* ===== タスクのカード ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--status-color);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .card .title { font-weight: 600; word-break: break-word; }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .meta { font-size: 13px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+  .memo {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .overdue { color: var(--danger); font-weight: 600; }
+  .card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 16px 0; }
+
+  /* ===== ダイアログ（画面の上に重なって出る入力ウィンドウ） ===== */
+  dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    background: var(--surface);
+    color: var(--text);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, .45); }
+  .dialog-body { padding: 16px; }
+  .dialog-body h3 { margin: 0 0 12px; font-size: 17px; }
+  .dialog-body h4 { margin: 16px 0 8px; font-size: 15px; }
+  .dialog-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .dialog-actions .left { margin-right: auto; }
+  .field { margin-bottom: 12px; }
+  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .req { color: var(--danger); }
+  .form-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+  .customer-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .customer-row .info { flex: 1; min-width: 0; word-break: break-word; }
+  .customer-row .sub { font-size: 12px; color: var(--muted); }
+
+  /* ===== フッター・お知らせ ===== */
+  footer {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 8px 16px 32px;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .notice {
+    background: #fff4e5;
+    color: #7a4b00;
+    border: 1px solid #f0c36d;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>タスク管理ボード</h1>
+    <button type="button" id="btnCustomers">顧客管理</button>
+    <button type="button" class="primary" id="btnAddTask">＋ タスク追加</button>
+  </div>
+</header>
+
+<main>
+  <div class="notice" id="notice" hidden></div>
+  <!-- 顧客ごとの件数。押すとその顧客だけに絞り込む -->
+  <div class="summary" id="summary"></div>
+  <!-- かんばんボード（予定 / 作業中 / 完了） -->
+  <div class="board" id="board"></div>
+</main>
+
+<footer>
+  <span>データはこのブラウザの中にだけ保存されます（他の端末・他のブラウザとは共有されません）。</span>
+  <button type="button" class="small" id="btnReset">ダミーデータに戻す</button>
+</footer>
+
+<!-- ===== タスク登録・編集ダイアログ（新規と編集で共通） ===== -->
+<dialog id="taskDialog">
+  <form id="taskForm" novalidate>
+    <div class="dialog-body">
+      <h3 id="taskDialogTitle">タスクを追加</h3>
+      <div class="field">
+        <label for="tCustomer">顧客 <span class="req">*</span></label>
+        <select id="tCustomer" required></select>
+      </div>
+      <div class="field">
+        <label for="tName">タスク名 <span class="req">*</span></label>
+        <input id="tName" required maxlength="100" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="tStatus">状態</label>
+        <select id="tStatus"></select>
+      </div>
+      <div class="field">
+        <label for="tDue">期限日</label>
+        <input id="tDue" type="date">
+      </div>
+      <div class="field">
+        <label for="tAssignee">担当者</label>
+        <input id="tAssignee" maxlength="50" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="tMemo">内容メモ</label>
+        <textarea id="tMemo" rows="3" maxlength="1000"></textarea>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="danger left" id="tDelete" hidden>削除</button>
+      <button type="button" data-close>キャンセル</button>
+      <button type="submit" class="primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== 顧客管理ダイアログ（一覧＋登録・編集） ===== -->
+<dialog id="customerDialog">
+  <div class="dialog-body">
+    <h3>顧客管理</h3>
+    <div id="customerList"></div>
+    <form id="customerForm" novalidate>
+      <h4 id="customerFormTitle">顧客を追加</h4>
+      <div class="field">
+        <label for="cName">顧客名 <span class="req">*</span></label>
+        <input id="cName" required maxlength="100" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="cOrder">表示順</label>
+        <input id="cOrder" type="number" min="0" step="1">
+      </div>
+      <div class="field">
+        <label for="cNote">備考</label>
+        <textarea id="cNote" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="form-buttons">
+        <button type="button" id="cCancelEdit" hidden>編集をやめる</button>
+        <button type="submit" class="primary" id="cSubmit">追加</button>
+      </div>
+    </form>
+  </div>
+  <div class="dialog-actions">
+    <button type="button" data-close>閉じる</button>
+  </div>
+</dialog>
+
+<script>
+/*
+ * タスク管理ボード
+ *
+ * FileMakerに置き換えると次のような構成です。
+ *   db.customers … 「顧客」テーブル
+ *   db.tasks     … 「タスク」テーブル（顧客IDで顧客とリレーション）
+ *   render()     … レイアウトを再描画する（「ウインドウの再描画」に相当）
+ *   save()       … データを保存する（ブラウザの localStorage に書き込む）
+ */
+
+// ===== 定数 =====
+const STORAGE_KEY = 'taskBoard.v1';
+const STATUSES = ['予定', '作業中', '完了'];            // 値一覧
+const STATUS_COLORS = { '予定': 'var(--plan)', '作業中': 'var(--doing)', '完了': 'var(--done)' };
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+// ===== 状態（グローバル変数に相当） =====
+let db = { customers: [], tasks: [] };
+let filterCustomerId = '';   // 絞り込み中の顧客ID（空なら全顧客）
+let editingTaskId = null;    // 編集中のタスクID（null なら新規）
+let editingCustomerId = null;
+
+// ===== 画面部品の取得 =====
+const $ = (id) => document.getElementById(id);
+const taskDialog = $('taskDialog');
+const customerDialog = $('customerDialog');
+
+// ===== 共通の小さな関数 =====
+
+// UUID を作る（FileMakerの Get(UUID) と同じ役割）
+function uuid() {
+  if (window.crypto && crypto.randomUUID) {
+    try { return crypto.randomUUID(); } catch (e) { /* 下の方法で作る */ }
+  }
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function nowStamp() {
+  return new Date().toISOString();
+}
+
+// 今日から n 日後の日付を "YYYY-MM-DD" で返す
+function dateFromToday(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+// "YYYY-MM-DD" を "10/25（土）" の形にする
+function formatDate(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const yearPart = y !== new Date().getFullYear() ? `${y}/` : '';
+  return `${yearPart}${m}/${d}（${WEEKDAYS[date.getDay()]}）`;
+}
+
+// 画面部品（HTML要素）を作る。文字は textContent として入るので、入力内容がそのまま表示される
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'class') node.className = value;
+    else if (key === 'style') node.style.cssText = value;
+    else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+    else if (value === true) node.setAttribute(key, '');
+    else if (value !== false && value != null) node.setAttribute(key, value);
+  }
+  for (const child of children.flat()) {
+    if (child == null || child === false) continue;
+    node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+function showNotice(message) {
+  $('notice').textContent = message;
+  $('notice').hidden = false;
+}
+
+// ===== データの読み込み・保存 =====
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.customers) && Array.isArray(data.tasks)) return data;
+    }
+  } catch (e) {
+    showNotice('保存データを読み込めなかったため、ダミーデータで表示しています。');
+  }
+  return createDummyData();
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  } catch (e) {
+    showNotice('このブラウザでは保存できません。ページを閉じると変更は消えます（プライベートモードなどが原因のことがあります）。');
+  }
+}
+
+// ダミーデータ（実在しない架空の顧客・タスクのみ）
+function createDummyData() {
+  const stamp = nowStamp();
+  const customers = [
+    { id: uuid(), name: 'サンプル商事', order: 1, note: 'ダミーの顧客です' },
+    { id: uuid(), name: 'テスト工業', order: 2, note: '' },
+    { id: uuid(), name: 'デモ物流', order: 3, note: '' },
+  ].map((c) => ({ ...c, createdAt: stamp, updatedAt: stamp }));
+
+  const [c1, c2, c3] = customers.map((c) => c.id);
+  const tasks = [
+    { customerId: c1, name: '見積書の作成', status: '作業中', due: dateFromToday(2), assignee: '担当A', memo: '前回の見積りをベースに作成する' },
+    { customerId: c1, name: '打合せ資料の準備', status: '予定', due: dateFromToday(5), assignee: '担当B', memo: '' },
+    { customerId: c1, name: '契約書の確認', status: '完了', due: dateFromToday(-3), assignee: '担当A', memo: '' },
+    { customerId: c1, name: '請求書の発行', status: '予定', due: dateFromToday(10), assignee: '', memo: '' },
+    { customerId: c2, name: '納品物の最終チェック', status: '作業中', due: dateFromToday(-1), assignee: '担当C', memo: 'チェックリストに沿って確認' },
+    { customerId: c2, name: '操作説明会の日程調整', status: '予定', due: dateFromToday(7), assignee: '担当B', memo: '' },
+    { customerId: c2, name: '要件ヒアリング', status: '完了', due: dateFromToday(-10), assignee: '担当C', memo: '' },
+    { customerId: c3, name: '帳票レイアウトの修正', status: '作業中', due: dateFromToday(3), assignee: '担当A', memo: '' },
+    { customerId: c3, name: '定例会の議事録作成', status: '完了', due: dateFromToday(-2), assignee: '担当B', memo: '' },
+    { customerId: c3, name: '次期改修の見積り', status: '予定', due: '', assignee: '', memo: '' },
+  ].map((t) => ({ id: uuid(), ...t, createdAt: stamp, updatedAt: stamp }));
+
+  return { customers, tasks };
+}
+
+// ===== データの検索・並べ替え =====
+
+function sortedCustomers() {
+  return [...db.customers].sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name, 'ja'));
+}
+
+function findCustomer(id) {
+  return db.customers.find((c) => c.id === id);
+}
+
+function countTasks(customerId, status) {
+  return db.tasks.filter((t) => t.customerId === customerId && t.status === status).length;
+}
+
+// 期限日が近い順（期限なしは最後）→ 更新が新しい順
+function compareTasks(a, b) {
+  if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
+  if (a.due && !b.due) return -1;
+  if (!a.due && b.due) return 1;
+  return a.updatedAt < b.updatedAt ? 1 : -1;
+}
+
+// ===== 画面の描画 =====
+
+function render() {
+  if (filterCustomerId && !findCustomer(filterCustomerId)) filterCustomerId = '';
+  renderSummary();
+  renderBoard();
+}
+
+// 顧客ごとの件数チップ
+function renderSummary() {
+  const box = $('summary');
+  box.replaceChildren();
+
+  box.append(el('button', {
+    type: 'button',
+    class: 'chip' + (filterCustomerId === '' ? ' active' : ''),
+    onclick: () => { filterCustomerId = ''; render(); },
+  },
+    el('span', { class: 'name' }, '全顧客'),
+    el('span', { class: 'counts' }, `全 ${db.tasks.length} 件`),
+  ));
+
+  for (const c of sortedCustomers()) {
+    const counts = STATUSES.map((s) => `${s} ${countTasks(c.id, s)}`).join(' / ');
+    box.append(el('button', {
+      type: 'button',
+      class: 'chip' + (filterCustomerId === c.id ? ' active' : ''),
+      // もう一度押すと絞り込みを解除
+      onclick: () => { filterCustomerId = filterCustomerId === c.id ? '' : c.id; render(); },
+    },
+      el('span', { class: 'name' }, c.name),
+      el('span', { class: 'counts' }, counts),
+    ));
+  }
+}
+
+// かんばんボード
+function renderBoard() {
+  const board = $('board');
+  board.replaceChildren();
+  const today = dateFromToday(0);
+  const visible = db.tasks.filter((t) => !filterCustomerId || t.customerId === filterCustomerId);
+
+  for (const status of STATUSES) {
+    const tasks = visible.filter((t) => t.status === status).sort(compareTasks);
+    const column = el('section', { class: 'column', style: `--status-color: ${STATUS_COLORS[status]}` },
+      el('div', { class: 'column-head' },
+        el('span', { class: 'dot' }),
+        el('h2', {}, status, ' ', el('span', { class: 'count' }, `${tasks.length} 件`)),
+        el('button', {
+          type: 'button',
+          class: 'small',
+          'aria-label': `${status}のタスクを追加`,
+          onclick: () => openTaskDialog(null, { status }),
+        }, '＋'),
+      ),
+    );
+
+    if (tasks.length === 0) column.append(el('div', { class: 'empty' }, 'タスクはありません'));
+    for (const task of tasks) column.append(renderCard(task, today));
+    board.append(column);
+  }
+}
+
+function renderCard(task, today) {
+  const customer = findCustomer(task.customerId);
+  const index = STATUSES.indexOf(task.status);
+  const prev = STATUSES[index - 1];
+  const next = STATUSES[index + 1];
+
+  let dueNode = null;
+  if (task.due) {
+    const overdue = task.status !== '完了' && task.due < today;
+    const label = task.due === today ? '今日まで' : `${formatDate(task.due)}まで`;
+    dueNode = el('span', { class: overdue ? 'overdue' : '' }, overdue ? `期限切れ ${label}` : label);
+  }
+
+  return el('article', { class: 'card' },
+    el('span', { class: 'badge' }, customer ? customer.name : '（顧客なし）'),
+    el('div', { class: 'title' }, task.name),
+    el('div', { class: 'meta' },
+      dueNode,
+      task.assignee ? el('span', {}, `担当：${task.assignee}`) : null,
+    ),
+    task.memo ? el('div', { class: 'memo' }, task.memo) : null,
+    el('div', { class: 'card-actions' },
+      prev ? el('button', { type: 'button', class: 'small', onclick: () => moveTask(task.id, prev) }, `◀ ${prev}へ`) : null,
+      next ? el('button', { type: 'button', class: 'small', onclick: () => moveTask(task.id, next) }, `${next}へ ▶`) : null,
+      el('button', { type: 'button', class: 'small', onclick: () => openTaskDialog(task) }, '編集'),
+      el('button', { type: 'button', class: 'small danger', onclick: () => deleteTask(task.id) }, '削除'),
+    ),
+  );
+}
+
+// ===== タスクの操作 =====
+
+function moveTask(id, status) {
+  const task = db.tasks.find((t) => t.id === id);
+  if (!task) return;
+  task.status = status;
+  task.updatedAt = nowStamp();
+  save();
+  render();
+}
+
+function deleteTask(id) {
+  const task = db.tasks.find((t) => t.id === id);
+  if (!task) return false;
+  if (!confirm(`タスク「${task.name}」を削除します。よろしいですか？`)) return false;
+  db.tasks = db.tasks.filter((t) => t.id !== id);
+  save();
+  render();
+  return true;
+}
+
+// task が null なら新規、あれば編集。preset で顧客・状態の初期値を指定できる
+function openTaskDialog(task, preset = {}) {
+  if (db.customers.length === 0) {
+    alert('先に顧客を登録してください。');
+    openCustomerDialog();
+    return;
+  }
+
+  editingTaskId = task ? task.id : null;
+  $('taskDialogTitle').textContent = task ? 'タスクを編集' : 'タスクを追加';
+  $('tDelete').hidden = !task;
+
+  $('tCustomer').replaceChildren(
+    ...sortedCustomers().map((c) => el('option', { value: c.id }, c.name)),
+  );
+  $('tStatus').replaceChildren(...STATUSES.map((s) => el('option', { value: s }, s)));
+
+  $('tCustomer').value = task ? task.customerId : (preset.customerId || filterCustomerId || sortedCustomers()[0].id);
+  $('tName').value = task ? task.name : '';
+  $('tStatus').value = task ? task.status : (preset.status || '予定');
+  $('tDue').value = task ? task.due : '';
+  $('tAssignee').value = task ? task.assignee : '';
+  $('tMemo').value = task ? task.memo : '';
+
+  taskDialog.showModal();
+  $('tName').focus();
+}
+
+$('taskForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('tName').value.trim();
+  if (!name) {
+    $('tName').value = '';
+    $('tName').reportValidity();
+    return;
+  }
+
+  const values = {
+    customerId: $('tCustomer').value,
+    name,
+    status: $('tStatus').value,
+    due: $('tDue').value,
+    assignee: $('tAssignee').value.trim(),
+    memo: $('tMemo').value.trim(),
+    updatedAt: nowStamp(),
+  };
+
+  if (editingTaskId) {
+    const task = db.tasks.find((t) => t.id === editingTaskId);
+    if (task) Object.assign(task, values);
+  } else {
+    db.tasks.push({ id: uuid(), ...values, createdAt: values.updatedAt });
+  }
+  save();
+  taskDialog.close();
+  render();
+});
+
+$('tDelete').addEventListener('click', () => {
+  if (editingTaskId && deleteTask(editingTaskId)) taskDialog.close();
+});
+
+// ===== 顧客の操作 =====
+
+function openCustomerDialog() {
+  resetCustomerForm();
+  renderCustomerList();
+  customerDialog.showModal();
+}
+
+function renderCustomerList() {
+  const list = $('customerList');
+  list.replaceChildren();
+  const customers = sortedCustomers();
+  if (customers.length === 0) {
+    list.append(el('div', { class: 'empty' }, '顧客が登録されていません'));
+    return;
+  }
+  for (const c of customers) {
+    const total = db.tasks.filter((t) => t.customerId === c.id).length;
+    list.append(el('div', { class: 'customer-row' },
+      el('div', { class: 'info' },
+        el('div', {}, c.name),
+        el('div', { class: 'sub' }, `表示順 ${c.order} ・ タスク ${total} 件`, c.note ? ` ・ ${c.note}` : ''),
+      ),
+      el('button', { type: 'button', class: 'small', onclick: () => startEditCustomer(c) }, '編集'),
+      el('button', { type: 'button', class: 'small danger', onclick: () => deleteCustomer(c.id) }, '削除'),
+    ));
+  }
+}
+
+function resetCustomerForm() {
+  editingCustomerId = null;
+  $('customerFormTitle').textContent = '顧客を追加';
+  $('cSubmit').textContent = '追加';
+  $('cCancelEdit').hidden = true;
+  $('cName').value = '';
+  // 表示順は今の最大値＋1（FileMakerのシリアル番号に相当）
+  $('cOrder').value = db.customers.reduce((max, c) => Math.max(max, c.order), 0) + 1;
+  $('cNote').value = '';
+}
+
+function startEditCustomer(c) {
+  editingCustomerId = c.id;
+  $('customerFormTitle').textContent = `「${c.name}」を編集`;
+  $('cSubmit').textContent = '更新';
+  $('cCancelEdit').hidden = false;
+  $('cName').value = c.name;
+  $('cOrder').value = c.order;
+  $('cNote').value = c.note;
+  $('cName').focus();
+}
+
+// 顧客を削除すると、その顧客のタスクも一緒に削除する（「関連レコードも削除」ON と同じ）
+function deleteCustomer(id) {
+  const c = findCustomer(id);
+  if (!c) return;
+  const total = db.tasks.filter((t) => t.customerId === id).length;
+  const message = total > 0
+    ? `顧客「${c.name}」を削除します。\nこの顧客のタスク ${total} 件も一緒に削除されます。\nよろしいですか？`
+    : `顧客「${c.name}」を削除します。よろしいですか？`;
+  if (!confirm(message)) return;
+
+  db.customers = db.customers.filter((x) => x.id !== id);
+  db.tasks = db.tasks.filter((t) => t.customerId !== id);
+  save();
+  if (editingCustomerId === id) resetCustomerForm();
+  renderCustomerList();
+  render();
+}
+
+$('customerForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('cName').value.trim();
+  if (!name) {
+    $('cName').value = '';
+    $('cName').reportValidity();
+    return;
+  }
+  const order = Number.parseInt($('cOrder').value, 10);
+  const values = {
+    name,
+    order: Number.isFinite(order) ? order : 0,
+    note: $('cNote').value.trim(),
+    updatedAt: nowStamp(),
+  };
+
+  if (editingCustomerId) {
+    const c = findCustomer(editingCustomerId);
+    if (c) Object.assign(c, values);
+  } else {
+    db.customers.push({ id: uuid(), ...values, createdAt: values.updatedAt });
+  }
+  save();
+  resetCustomerForm();
+  renderCustomerList();
+  render();
+});
+
+$('cCancelEdit').addEventListener('click', resetCustomerForm);
+
+// ===== ボタンの設定 =====
+
+$('btnAddTask').addEventListener('click', () => openTaskDialog(null));
+$('btnCustomers').addEventListener('click', openCustomerDialog);
+$('btnReset').addEventListener('click', () => {
+  if (!confirm('今のデータをすべて消して、ダミーデータに戻します。よろしいですか？')) return;
+  db = createDummyData();
+  filterCustomerId = '';
+  save();
+  render();
+});
+
+// 「キャンセル」「閉じる」ボタンでダイアログを閉じる
+document.querySelectorAll('[data-close]').forEach((button) => {
+  button.addEventListener('click', () => button.closest('dialog').close());
+});
+
+// ===== 起動時の処理 =====
+db = load();
+save();
+render();
+</script>
+</body>
+</html>
