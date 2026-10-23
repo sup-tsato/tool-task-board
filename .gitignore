@@ -1,2 +1,6 @@
 # Macが自動で作るファイル
 .DS_Store
+
+# 手元で試すときのパスワード置き場（GitHubに送らない）
+.dev.vars
+.env
